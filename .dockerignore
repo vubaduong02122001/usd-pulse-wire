@@ -1,0 +1,7 @@
+.venv
+__pycache__
+*.pyc
+public-tunnel.log
+public-tunnel.err.log
+uvicorn-public.log
+uvicorn-public.err.log
