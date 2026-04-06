@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: usd-pulse-wire
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
