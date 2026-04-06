@@ -28,7 +28,7 @@ class Settings:
     history_limit: int = env_int("HISTORY_LIMIT", 220)
     http_timeout_seconds: int = env_int("HTTP_TIMEOUT_SECONDS", 15)
     default_feed_limit: int = env_int("DEFAULT_FEED_LIMIT", 90)
-    market_cache_seconds: int = env_int("MARKET_CACHE_SECONDS", 1)
+    market_cache_seconds: int = env_int("MARKET_CACHE_SECONDS", 15)
     request_user_agent: str = os.getenv(
         "REQUEST_USER_AGENT",
         "USDPulseWire/1.0 (+https://localhost)",
