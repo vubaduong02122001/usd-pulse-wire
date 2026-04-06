@@ -457,7 +457,8 @@ function renderConnectionState() {
 function renderMarketGrid() {
   const quotes = state.market?.quotes || [];
   if (!quotes.length) {
-    dom.marketGrid.innerHTML = `<div class="empty-state">Waiting for price tape.</div>`;
+    const sourceNote = state.market?.source || "Waiting for price tape.";
+    dom.marketGrid.innerHTML = `<div class="empty-state">${escapeHtml(sourceNote)}</div>`;
     return;
   }
 
@@ -852,6 +853,7 @@ function renderChartGrid() {
     .map((slot, index) => {
       const isActive = index === state.activeChartSlot;
       const hasAsset = Boolean(slot.asset);
+      const hasBars = Boolean(slot.data?.bars?.length);
       return `
         <section class="chart-slot ${isActive ? "active" : ""}">
           <div class="chart-slot-head">
@@ -903,9 +905,13 @@ function renderChartGrid() {
           </div>
           <div class="chart-surface">
             ${
-              hasAsset
+              hasAsset && hasBars
                 ? `<div class="chart-canvas" id="chartCanvas-${index}"></div>`
-                : `<div class="chart-placeholder">Click an asset from the tape to pin it here.<br />Up to 4 charts can stay open together.</div>`
+                : `<div class="chart-placeholder">${
+                    hasAsset
+                      ? "Chart feed temporarily unavailable.<br />Try reload later or change timeframe."
+                      : "Click an asset from the tape to pin it here.<br />Up to 4 charts can stay open together."
+                  }</div>`
             }
           </div>
           <div class="chart-status">
@@ -913,7 +919,7 @@ function renderChartGrid() {
               slot.loading
                 ? "Loading chart..."
                 : hasAsset
-                  ? `${slot.type.toUpperCase()} / ${slot.timeframe} / ${slot.updatedAt ? formatAgo(slot.updatedAt) : "waiting"}`
+                  ? `${slot.type.toUpperCase()} / ${slot.timeframe} / ${hasBars ? (slot.updatedAt ? formatAgo(slot.updatedAt) : "waiting") : "unavailable"}`
                   : "No asset loaded"
             }
           </div>
