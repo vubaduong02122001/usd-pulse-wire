@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>USD Pulse Wire Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css?v=20260406g" />
+  </head>
+  <body>
+    <div class="terminal">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-badge">USD</span>
+          <div class="brand-copy">
+            <strong>Pulse Wire</strong>
+            <span>Realtime dollar-sensitive market and macro terminal</span>
+          </div>
+        </div>
+
+        <div class="topbar-strip">
+          <span class="strip-label">LIVE</span>
+          <span id="connectionText">CONNECTING REALTIME FEED</span>
+        </div>
+
+        <div class="clock-block">
+          <span class="clock-label">LAST SYNC</span>
+          <strong id="lastSync">--</strong>
+        </div>
+      </header>
+
+      <section class="function-strip">
+        <span class="function-key amber">F1 HELP</span>
+        <span class="function-key amber">F2 PX</span>
+        <span class="function-key amber">F3 FX</span>
+        <span class="function-key amber">F4 CAL</span>
+        <span class="function-key amber">F5 NEWS</span>
+        <span class="function-key amber">F6 TAPE</span>
+        <span class="function-key amber">F7 CHART</span>
+        <span class="function-key amber">F10 MON</span>
+        <span class="function-key dark">USD &lt;GO&gt;</span>
+        <span class="function-key dark">TOP USD NEWS</span>
+      </section>
+
+      <section class="ticker-tape">
+        <div class="ticker-track" id="tickerTrack">
+          <span class="ticker-placeholder">Loading terminal tape...</span>
+        </div>
+      </section>
+
+      <section class="command-row">
+        <div class="command-box">
+          <span class="command-key">NEWS</span>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Search headline, macro term, asset, or source"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="filter-box" role="group" aria-label="Impact filter">
+          <button class="impact-filter active" data-impact="all" type="button">ALL</button>
+          <button class="impact-filter" data-impact="high" type="button">HIGH</button>
+          <button class="impact-filter" data-impact="medium" type="button">MED</button>
+          <button class="impact-filter" data-impact="watch" type="button">WATCH</button>
+        </div>
+
+        <button class="refresh-button" id="refreshButton" type="button">FORCE REFRESH</button>
+      </section>
+
+      <main class="primary-grid">
+        <section class="panel market-panel">
+          <div class="panel-header">
+            <span class="panel-code">PX BOARD</span>
+            <strong>Cross Asset Monitor</strong>
+          </div>
+
+          <div class="market-grid" id="marketGrid"></div>
+
+          <section class="subpanel compact-panel">
+            <div class="subpanel-head">
+              <span>MARKET GROUPS</span>
+              <strong>LEADERS</strong>
+            </div>
+            <div class="signal-table" id="marketGroups"></div>
+          </section>
+
+          <section class="subpanel compact-panel">
+            <div class="subpanel-head">
+              <span>PRICE SOURCE</span>
+              <strong id="marketStamp">LOADING</strong>
+            </div>
+            <div class="summary-lines" id="marketMeta"></div>
+          </section>
+        </section>
+
+        <section class="panel board-panel">
+          <div class="panel-header">
+            <span class="panel-code">USD MONITOR</span>
+            <strong>Macro Board</strong>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-panel">
+              <span class="metric-label">TRACKED</span>
+              <strong class="metric-value" id="headlineCount">0</strong>
+              <small class="metric-note">Filtered rows on screen</small>
+            </article>
+            <article class="metric-panel accent-high">
+              <span class="metric-label">HIGH IMPACT</span>
+              <strong class="metric-value" id="highImpactCount">0</strong>
+              <small class="metric-note">Macro catalysts in focus</small>
+            </article>
+            <article class="metric-panel accent-green">
+              <span class="metric-label">SOURCES UP</span>
+              <strong class="metric-value" id="sourceCount">0</strong>
+              <small class="metric-note">Feeds responding</small>
+            </article>
+            <article class="metric-panel accent-blue">
+              <span class="metric-label">LAST BURST</span>
+              <strong class="metric-value" id="lastBurst">--</strong>
+              <small class="metric-note">Latest new insert</small>
+            </article>
+          </div>
+
+          <section class="subpanel compact-panel">
+            <div class="subpanel-head">
+              <span>FILTER STATE</span>
+              <strong id="feedSummary">Loading...</strong>
+            </div>
+            <div class="summary-lines" id="summaryLines"></div>
+          </section>
+
+          <section class="subpanel compact-panel">
+            <div class="subpanel-head">
+              <span>SIGNAL STACK</span>
+              <strong>TOP THEMES</strong>
+            </div>
+            <div class="signal-table" id="signalTable"></div>
+          </section>
+        </section>
+
+        <section class="panel news-panel">
+          <div class="panel-header">
+            <span class="panel-code">LIVE NEWS</span>
+            <strong>Dollar Impact Feed</strong>
+          </div>
+
+          <div class="news-frame">
+            <div class="table-head">
+              <span>TIME</span>
+              <span>IMPACT</span>
+              <span>SOURCE</span>
+              <span>HEADLINE / SIGNALS</span>
+              <span>BIAS / TAPE</span>
+            </div>
+            <div id="feedList" class="feed-list" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <aside class="panel side-panel">
+          <div class="panel-header">
+            <span class="panel-code">SYSTEM</span>
+            <strong>Source Monitor</strong>
+          </div>
+
+          <section class="mini-panel">
+            <div class="mini-head">
+              <span>CONNECTION</span>
+              <strong id="connectionBadge">SYNC</strong>
+            </div>
+            <div class="terminal-note">
+              Terminal prioritizes Fed, Treasury, BEA, White House, CNBC, and MarketWatch
+              items with potential USD impact.
+            </div>
+          </section>
+
+          <section class="mini-panel">
+            <div class="mini-head">
+              <span>HOT LIST</span>
+              <strong>RECENT CATALYSTS</strong>
+            </div>
+            <div class="hot-list" id="hotList"></div>
+          </section>
+
+          <section class="mini-panel">
+            <div class="mini-head">
+              <span>SOURCE HEALTH</span>
+              <strong>FEED STATUS</strong>
+            </div>
+            <div id="sourceList" class="source-list"></div>
+          </section>
+        </aside>
+      </main>
+
+      <section class="secondary-grid">
+        <section class="panel calendar-panel">
+          <div class="panel-header">
+            <span class="panel-code">CALENDAR</span>
+            <strong>USD Event Matrix</strong>
+          </div>
+
+          <div class="calendar-shell">
+            <section class="calendar-column">
+              <div class="subpanel-head">
+                <span>OFFICIAL SCHEDULE</span>
+                <strong id="calendarStamp">LOADING</strong>
+              </div>
+              <div id="calendarSchedule" class="calendar-list"></div>
+            </section>
+
+            <section class="calendar-column">
+              <div class="subpanel-head">
+                <span>INDICATOR HISTORY</span>
+                <strong>MONTH / QTR / YR</strong>
+              </div>
+              <div id="indicatorList" class="indicator-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel speech-panel">
+          <div class="panel-header">
+            <span class="panel-code">TRUMP TAPE</span>
+            <strong>Official Remarks / Policy</strong>
+          </div>
+          <div id="speechList" class="speech-list"></div>
+        </section>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="panel-header">
+          <span class="panel-code">CHART LAB</span>
+          <strong>4-Slot Asset Workspace</strong>
+        </div>
+
+        <div class="chart-note">
+          Click any asset in `PX BOARD`, `LIVE NEWS`, `USD Event Matrix`, or `Trump Tape`
+          to load a chart into the active slot. Each slot supports line / candle views,
+          timeframes, and optional MA overlays.
+        </div>
+
+        <div class="chart-grid" id="chartGrid"></div>
+      </section>
+    </div>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script type="module" src="/static/app.js?v=20260406g"></script>
+  </body>
+</html>
