@@ -111,30 +111,38 @@ class MarketDataService:
             ):
                 return self._snapshot
 
-            response = await self._client.get(
-                "https://query1.finance.yahoo.com/v7/finance/spark",
-                params={
-                    "symbols": ",".join(asset.symbol for asset in TRACKED_ASSETS),
-                    "interval": "1m",
-                    "range": "1d",
-                },
-            )
-            response.raise_for_status()
+            try:
+                response = await self._client.get(
+                    "https://query1.finance.yahoo.com/v7/finance/spark",
+                    params={
+                        "symbols": ",".join(asset.symbol for asset in TRACKED_ASSETS),
+                        "interval": "1m",
+                        "range": "1d",
+                    },
+                )
+                response.raise_for_status()
 
-            payload = response.json()
-            result = payload.get("spark", {}).get("result", [])
-            quotes = [
-                quote
-                for entry in result
-                if (quote := self._build_quote_from_spark(entry, now)) is not None
-            ]
+                payload = response.json()
+                result = payload.get("spark", {}).get("result", [])
+                quotes = [
+                    quote
+                    for entry in result
+                    if (quote := self._build_quote_from_spark(entry, now)) is not None
+                ]
 
-            quotes.sort(key=lambda quote: (quote.group, quote.label))
-            self._snapshot = MarketSnapshot(
-                updated_at=now,
-                source="Yahoo Finance spark",
-                quotes=quotes,
-            )
+                quotes.sort(key=lambda quote: (quote.group, quote.label))
+                self._snapshot = MarketSnapshot(
+                    updated_at=now,
+                    source="Yahoo Finance spark",
+                    quotes=quotes,
+                )
+            except httpx.HTTPError:
+                if self._snapshot is None:
+                    self._snapshot = MarketSnapshot(
+                        updated_at=now,
+                        source="Market feed temporarily rate-limited",
+                        quotes=[],
+                    )
             return self._snapshot
 
     async def chart(self, asset: str, timeframe: str = "5D", *, force: bool = False) -> AssetChart:
@@ -154,64 +162,84 @@ class MarketDataService:
             ):
                 return cached
 
-            response = await self._client.get(
-                f"https://query1.finance.yahoo.com/v8/finance/chart/{config.symbol}",
-                params={
-                    "interval": preset.interval,
-                    "range": preset.range,
-                    "includePrePost": "false",
-                    "events": "div,splits",
-                },
-            )
-            response.raise_for_status()
-
-            payload = response.json()
-            result = (payload.get("chart") or {}).get("result") or []
-            if not result:
-                raise RuntimeError(f"No chart data returned for {config.label}.")
-
-            entry = result[0]
-            timestamps = entry.get("timestamp") or []
-            indicators = (((entry.get("indicators") or {}).get("quote")) or [{}])[0]
-            opens = indicators.get("open") or []
-            highs = indicators.get("high") or []
-            lows = indicators.get("low") or []
-            closes = indicators.get("close") or []
-            volumes = indicators.get("volume") or []
-            bars: list[PriceBar] = []
-
-            for index, timestamp in enumerate(timestamps):
-                close = closes[index] if index < len(closes) else None
-                if close is None:
-                    continue
-
-                open_value = opens[index] if index < len(opens) and opens[index] is not None else close
-                high_value = highs[index] if index < len(highs) and highs[index] is not None else close
-                low_value = lows[index] if index < len(lows) and lows[index] is not None else close
-                volume = volumes[index] if index < len(volumes) else None
-
-                bars.append(
-                    PriceBar(
-                        time=datetime.fromtimestamp(int(timestamp), tz=UTC),
-                        open=round(float(open_value), quote_digits(config)),
-                        high=round(float(high_value), quote_digits(config)),
-                        low=round(float(low_value), quote_digits(config)),
-                        close=round(float(close), quote_digits(config)),
-                        volume=None if volume is None else float(volume),
-                    )
+            try:
+                response = await self._client.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{config.symbol}",
+                    params={
+                        "interval": preset.interval,
+                        "range": preset.range,
+                        "includePrePost": "false",
+                        "events": "div,splits",
+                    },
                 )
+                response.raise_for_status()
 
-            chart = AssetChart(
-                updated_at=now,
-                source="Yahoo Finance chart",
-                symbol=config.symbol,
-                label=config.label,
-                group=config.group,
-                interval=preset.interval,
-                range=preset.range,
-                bars=bars,
-            )
-            self._chart_cache[cache_key] = chart
+                payload = response.json()
+                result = (payload.get("chart") or {}).get("result") or []
+                if not result:
+                    raise RuntimeError(f"No chart data returned for {config.label}.")
+
+                entry = result[0]
+                timestamps = entry.get("timestamp") or []
+                indicators = (((entry.get("indicators") or {}).get("quote")) or [{}])[0]
+                opens = indicators.get("open") or []
+                highs = indicators.get("high") or []
+                lows = indicators.get("low") or []
+                closes = indicators.get("close") or []
+                volumes = indicators.get("volume") or []
+                bars: list[PriceBar] = []
+
+                for index, timestamp in enumerate(timestamps):
+                    close = closes[index] if index < len(closes) else None
+                    if close is None:
+                        continue
+
+                    open_value = (
+                        opens[index] if index < len(opens) and opens[index] is not None else close
+                    )
+                    high_value = (
+                        highs[index] if index < len(highs) and highs[index] is not None else close
+                    )
+                    low_value = (
+                        lows[index] if index < len(lows) and lows[index] is not None else close
+                    )
+                    volume = volumes[index] if index < len(volumes) else None
+
+                    bars.append(
+                        PriceBar(
+                            time=datetime.fromtimestamp(int(timestamp), tz=UTC),
+                            open=round(float(open_value), quote_digits(config)),
+                            high=round(float(high_value), quote_digits(config)),
+                            low=round(float(low_value), quote_digits(config)),
+                            close=round(float(close), quote_digits(config)),
+                            volume=None if volume is None else float(volume),
+                        )
+                    )
+
+                chart = AssetChart(
+                    updated_at=now,
+                    source="Yahoo Finance chart",
+                    symbol=config.symbol,
+                    label=config.label,
+                    group=config.group,
+                    interval=preset.interval,
+                    range=preset.range,
+                    bars=bars,
+                )
+                self._chart_cache[cache_key] = chart
+            except httpx.HTTPError:
+                if cached is not None:
+                    return cached
+                chart = AssetChart(
+                    updated_at=now,
+                    source="Chart feed temporarily rate-limited",
+                    symbol=config.symbol,
+                    label=config.label,
+                    group=config.group,
+                    interval=preset.interval,
+                    range=preset.range,
+                    bars=[],
+                )
             return chart
 
     def _build_quote_from_spark(
