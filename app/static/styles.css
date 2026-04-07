@@ -1121,6 +1121,133 @@ button {
   line-height: 1.45;
 }
 
+.analysis-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.analysis-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-bright);
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--soft);
+}
+
+.analysis-select-wrap select {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  outline: 0;
+}
+
+.analysis-note {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.analysis-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.84fr) minmax(0, 1.76fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.analysis-summary-panel {
+  min-width: 0;
+}
+
+.analysis-subhead {
+  margin-top: 10px;
+}
+
+.analysis-formula-list,
+.analysis-timeframe-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.analysis-formula-card,
+.analysis-row {
+  border: 1px solid var(--line-bright);
+  background: linear-gradient(180deg, #111924 0%, #0a1119 100%);
+}
+
+.analysis-formula-card summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 9px;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--orange-2);
+}
+
+.analysis-formula-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-formula-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 9px 9px;
+}
+
+.analysis-formula-text {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.analysis-head,
+.analysis-row {
+  grid-template-columns: 68px 178px 148px 260px 230px minmax(0, 1fr);
+}
+
+.analysis-row {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 9px;
+}
+
+.analysis-tf-cell,
+.analysis-phase-cell,
+.analysis-metric-cell,
+.analysis-map-cell,
+.analysis-summary-cell {
+  min-width: 0;
+}
+
+.analysis-tf-cell strong,
+.analysis-hold-cell,
+.analysis-map-cell,
+.analysis-summary-cell,
+.analysis-metric-cell {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.analysis-phase-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.analysis-hold-cell {
+  color: var(--soft);
+  line-height: 1.5;
+}
+
+.analysis-summary-cell {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .chart-note {
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1308,6 +1435,7 @@ button {
 
 @media (max-width: 1320px) {
   .secondary-grid,
+  .analysis-shell,
   .quant-shell,
   .calendar-shell,
   .chart-grid {
@@ -1336,6 +1464,7 @@ button {
   .topbar,
   .primary-grid,
   .secondary-grid,
+  .analysis-toolbar,
   .quant-regime-grid,
   .command-row,
   .metric-grid,
@@ -1351,6 +1480,8 @@ button {
 
   .table-head,
   .news-row,
+  .analysis-row,
+  .analysis-head,
   .quant-row,
   .quant-head {
     grid-template-columns: 1fr;
