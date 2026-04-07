@@ -36,6 +36,10 @@ const dom = {
   calendarSchedule: document.getElementById("calendarSchedule"),
   indicatorList: document.getElementById("indicatorList"),
   speechList: document.getElementById("speechList"),
+  quantStamp: document.getElementById("quantStamp"),
+  quantRegime: document.getElementById("quantRegime"),
+  quantActions: document.getElementById("quantActions"),
+  quantList: document.getElementById("quantList"),
   chartGrid: document.getElementById("chartGrid"),
   toastStack: document.getElementById("toastStack"),
   impactFilters: Array.from(document.querySelectorAll("[data-impact]")),
@@ -47,6 +51,7 @@ const state = {
   market: null,
   calendar: null,
   speeches: null,
+  quant: null,
   search: "",
   impact: "all",
   connectionState: "connecting",
@@ -228,6 +233,19 @@ function absString(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   const sign = value > 0 ? "+" : "";
   return `${sign}${Number(value).toFixed(digits)}`;
+}
+
+function moveString(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return `${Number(value).toFixed(digits)}%`;
+}
+
+function titleCase(value = "") {
+  return String(value)
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function impactRank(level) {
@@ -808,6 +826,95 @@ function renderSpeeches() {
       .join("") || `<div class="empty-state">No official Trump tape items right now.</div>`;
 }
 
+function renderQuant() {
+  dom.quantStamp.textContent = state.quant?.updated_at ? formatAgo(state.quant.updated_at) : "LOADING";
+
+  if (!state.quant?.regime) {
+    dom.quantRegime.innerHTML = `<div class="empty-state">Quant engine is warming up.</div>`;
+    dom.quantActions.innerHTML = "";
+    dom.quantList.innerHTML = `<div class="empty-state">No quant outlook yet.</div>`;
+    return;
+  }
+
+  const regime = state.quant.regime;
+  dom.quantRegime.innerHTML = `
+    <article class="quant-regime-card">
+      <span class="quant-regime-label">REGIME</span>
+      <strong>${escapeHtml(regime.label)}</strong>
+      <small>${escapeHtml(regime.summary)}</small>
+    </article>
+    <article class="quant-regime-card">
+      <span class="quant-regime-label">USD BIAS</span>
+      <strong class="quant-bias ${escapeHtml(regime.usd_bias)}">${escapeHtml(titleCase(regime.usd_bias))}</strong>
+      <small>confidence ${escapeHtml(String(regime.confidence))}</small>
+    </article>
+    <article class="quant-regime-card">
+      <span class="quant-regime-label">VOL STATE</span>
+      <strong class="quant-bias ${escapeHtml(regime.volatility_state)}">${escapeHtml(titleCase(regime.volatility_state))}</strong>
+      <small>headline risk ${escapeHtml(titleCase(regime.headline_risk))}</small>
+    </article>
+    <article class="quant-regime-card">
+      <span class="quant-regime-label">FOCUS</span>
+      <div class="quant-focus">
+        ${(regime.focus_assets || [])
+          .map((asset) => `<button class="slot-button" type="button" data-open-asset="${asset}">${escapeHtml(asset)}</button>`)
+          .join("")}
+      </div>
+    </article>
+  `;
+
+  dom.quantActions.innerHTML = (regime.actions || [])
+    .map(
+      (action, index) => `
+        <div class="summary-line">
+          <span>RISK ${index + 1}</span>
+          <strong>${escapeHtml(action)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
+  const assets = state.quant.assets || [];
+  dom.quantList.innerHTML =
+    assets
+      .map((item) => {
+        const digits = quoteDigits(getMarketQuote(item.asset) || { group: item.group, label: item.asset });
+        return `
+          <article class="quant-row">
+            <div class="quant-asset-col">
+              <button class="quant-asset-button" type="button" data-open-asset="${item.asset}">${escapeHtml(item.asset)}</button>
+              <div class="quant-asset-meta">${escapeHtml(item.group)} / ${item.spot === null || item.spot === undefined ? "--" : formatCompactNumber(item.spot, digits)}</div>
+            </div>
+            <div class="quant-bias-col">
+              <span class="quant-bias ${item.one_day_bias}">1D ${escapeHtml(titleCase(item.one_day_bias))}</span>
+              <span class="quant-bias ${item.one_week_bias}">1W ${escapeHtml(titleCase(item.one_week_bias))}</span>
+              <span class="quant-bias ${item.volatility_regime}">${escapeHtml(titleCase(item.volatility_regime))}</span>
+            </div>
+            <div class="quant-move-col">
+              <strong>${escapeHtml(moveString(item.expected_move_pct_1d))} / ${escapeHtml(moveString(item.expected_move_pct_1w))}</strong>
+              <div class="quant-subline">conf ${escapeHtml(String(item.confidence))} | trend ${escapeHtml(absString(item.trend_score, 2))}</div>
+              <div class="quant-subline">news ${escapeHtml(absString(item.news_score, 2))} | event ${escapeHtml(absString(item.event_score, 2))}</div>
+            </div>
+            <div class="quant-range-col">
+              <div class="quant-range-main">${item.range_low === null || item.range_high === null ? "--" : `${formatCompactNumber(item.range_low, digits)} - ${formatCompactNumber(item.range_high, digits)}`}</div>
+              <div class="quant-subline">stop ${item.stop_level === null ? "--" : formatCompactNumber(item.stop_level, digits)} | tp ${item.take_profit_level === null ? "--" : formatCompactNumber(item.take_profit_level, digits)}</div>
+              <div class="quant-subline">${escapeHtml(item.risk_stance)}</div>
+            </div>
+            <div class="quant-driver-col">
+              <div class="quant-driver-main">${escapeHtml(clampSummary(item.driver_summary || "", 180))}</div>
+              <div class="chip-strip">
+                ${(item.drivers || [])
+                  .slice(0, 3)
+                  .map((driver) => `<span class="chip term">${escapeHtml(clampSummary(driver, 38))}</span>`)
+                  .join("")}
+              </div>
+            </div>
+          </article>
+        `;
+      })
+      .join("") || `<div class="empty-state">No quant outlook yet.</div>`;
+}
+
 function renderAllViews() {
   renderConnectionState();
   renderTickerTape();
@@ -819,6 +926,7 @@ function renderAllViews() {
   renderHotList();
   renderSources();
   renderFeed();
+  renderQuant();
 }
 
 // chart functions
@@ -1108,14 +1216,17 @@ async function refreshMacroPanels(force = false) {
   if (state.macroBusy) return;
   state.macroBusy = true;
   try {
-    const [calendar, speeches] = await Promise.all([
+    const [calendar, speeches, quant] = await Promise.all([
       fetchJSON(`/api/calendar?force=${force ? "true" : "false"}`),
       fetchJSON(`/api/trump-tape?force=${force ? "true" : "false"}`),
+      fetchJSON(`/api/quant-outlook?force=${force ? "true" : "false"}`),
     ]);
     state.calendar = calendar;
     state.speeches = speeches;
+    state.quant = quant;
     renderCalendar();
     renderSpeeches();
+    renderQuant();
   } catch (error) {
     console.error(error);
     pushToast("Macro Panel Error", error.message);
