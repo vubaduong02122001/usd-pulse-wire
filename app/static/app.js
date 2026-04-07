@@ -5,6 +5,7 @@ const FEED_RENDER_LIMIT = 36;
 const CHART_TIMEFRAMES = ["1D", "5D", "1M", "3M", "1Y"];
 const CHART_TYPES = ["candles", "line"];
 const CHART_MAS = [20, 50];
+const DEFAULT_CHART_ASSETS = ["DXY", "EURUSD", "US10Y", "BTCUSD"];
 const HISTORY_LIMIT = 220;
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const SNAPSHOT_MODE = PAGE_PARAMS.has("snapshot");
@@ -1075,6 +1076,12 @@ async function refreshOpenCharts() {
   await Promise.all(openSlots.map(({ index }) => loadChartSlot(index, false)));
 }
 
+async function preloadDefaultCharts() {
+  for (const asset of DEFAULT_CHART_ASSETS) {
+    await openChartForAsset(asset);
+  }
+}
+
 // loading and events
 async function loadInitial() {
   const payload = await fetchJSON("/api/news?limit=160");
@@ -1288,6 +1295,8 @@ async function bootstrap() {
     await Promise.all([loadInitial(), refreshMacroPanels(false)]);
     if (BOOT_ASSET) {
       await openChartForAsset(BOOT_ASSET);
+    } else {
+      await preloadDefaultCharts();
     }
   } catch (error) {
     pushToast("Initial Load Error", error.message);
