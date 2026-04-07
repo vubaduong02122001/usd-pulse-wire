@@ -240,6 +240,13 @@ function moveString(value, digits = 2) {
   return `${Number(value).toFixed(digits)}%`;
 }
 
+function signedMoveString(value, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  const numeric = Number(value);
+  const sign = numeric > 0 ? "+" : "";
+  return `${sign}${numeric.toFixed(digits)}%`;
+}
+
 function titleCase(value = "") {
   return String(value)
     .split(/[\s_-]+/)
@@ -844,14 +851,19 @@ function renderQuant() {
       <small>${escapeHtml(regime.summary)}</small>
     </article>
     <article class="quant-regime-card">
+      <span class="quant-regime-label">MODEL</span>
+      <strong>${escapeHtml(regime.model_version || "QES")}</strong>
+      <small>confidence ${escapeHtml(String(regime.confidence))}</small>
+    </article>
+    <article class="quant-regime-card">
       <span class="quant-regime-label">USD BIAS</span>
       <strong class="quant-bias ${escapeHtml(regime.usd_bias)}">${escapeHtml(titleCase(regime.usd_bias))}</strong>
-      <small>confidence ${escapeHtml(String(regime.confidence))}</small>
+      <small>event intensity ${escapeHtml(formatCompactNumber(regime.event_intensity, 2))}</small>
     </article>
     <article class="quant-regime-card">
       <span class="quant-regime-label">VOL STATE</span>
       <strong class="quant-bias ${escapeHtml(regime.volatility_state)}">${escapeHtml(titleCase(regime.volatility_state))}</strong>
-      <small>headline risk ${escapeHtml(titleCase(regime.headline_risk))}</small>
+      <small>headline ${escapeHtml(titleCase(regime.headline_risk))} / dispersion ${escapeHtml(String(regime.cross_asset_dispersion ?? "--"))}</small>
     </article>
     <article class="quant-regime-card">
       <span class="quant-regime-label">FOCUS</span>
@@ -879,33 +891,47 @@ function renderQuant() {
     assets
       .map((item) => {
         const digits = quoteDigits(getMarketQuote(item.asset) || { group: item.group, label: item.asset });
+        const topFactors = (item.factors || []).slice(0, 3);
+        const hedges = item.risk_budget?.hedge_assets || [];
         return `
           <article class="quant-row">
             <div class="quant-asset-col">
               <button class="quant-asset-button" type="button" data-open-asset="${item.asset}">${escapeHtml(item.asset)}</button>
               <div class="quant-asset-meta">${escapeHtml(item.group)} / ${item.spot === null || item.spot === undefined ? "--" : formatCompactNumber(item.spot, digits)}</div>
+              <div class="quant-subline">${escapeHtml(titleCase(item.model_state || "balanced"))} / ens ${escapeHtml(absString(item.ensemble_score, 2))}</div>
             </div>
             <div class="quant-bias-col">
               <span class="quant-bias ${item.one_day_bias}">1D ${escapeHtml(titleCase(item.one_day_bias))}</span>
               <span class="quant-bias ${item.one_week_bias}">1W ${escapeHtml(titleCase(item.one_week_bias))}</span>
               <span class="quant-bias ${item.volatility_regime}">${escapeHtml(titleCase(item.volatility_regime))}</span>
+              <span class="quant-bias ${escapeHtml(item.microstructure?.pressure?.includes("buy") ? "bullish" : item.microstructure?.pressure?.includes("sell") ? "bearish" : "neutral")}">${escapeHtml(titleCase(item.microstructure?.pressure || "balanced"))}</span>
             </div>
             <div class="quant-move-col">
-              <strong>${escapeHtml(moveString(item.expected_move_pct_1d))} / ${escapeHtml(moveString(item.expected_move_pct_1w))}</strong>
-              <div class="quant-subline">conf ${escapeHtml(String(item.confidence))} | trend ${escapeHtml(absString(item.trend_score, 2))}</div>
-              <div class="quant-subline">news ${escapeHtml(absString(item.news_score, 2))} | event ${escapeHtml(absString(item.event_score, 2))}</div>
+              <strong>${escapeHtml(signedMoveString(item.one_day_return_pct))} / ${escapeHtml(signedMoveString(item.one_week_return_pct))}</strong>
+              <div class="quant-subline">move ${escapeHtml(moveString(item.expected_move_pct_1d))} | ${escapeHtml(moveString(item.expected_move_pct_1w))}</div>
+              <div class="quant-subline">conf ${escapeHtml(String(item.confidence))} | trend ${escapeHtml(absString(item.trend_score, 2))} | rev ${escapeHtml(absString(item.mean_reversion_score, 2))}</div>
+              <div class="quant-subline">macro ${escapeHtml(absString(item.news_score, 2))} | cross ${escapeHtml(absString(item.cross_asset_score, 2))} | micro ${escapeHtml(absString(item.microstructure_score, 2))}</div>
             </div>
             <div class="quant-range-col">
               <div class="quant-range-main">${item.range_low === null || item.range_high === null ? "--" : `${formatCompactNumber(item.range_low, digits)} - ${formatCompactNumber(item.range_high, digits)}`}</div>
               <div class="quant-subline">stop ${item.stop_level === null ? "--" : formatCompactNumber(item.stop_level, digits)} | tp ${item.take_profit_level === null ? "--" : formatCompactNumber(item.take_profit_level, digits)}</div>
+              <div class="quant-subline">VaR95 ${escapeHtml(moveString(item.risk_budget?.var_95_1d_pct))} | ES ${escapeHtml(moveString(item.risk_budget?.expected_shortfall_pct))}</div>
+              <div class="quant-subline">risk ${escapeHtml(moveString(item.risk_budget?.position_risk_pct))} | hedge ${escapeHtml(moveString(item.risk_budget?.hedge_ratio))}</div>
               <div class="quant-subline">${escapeHtml(item.risk_stance)}</div>
             </div>
             <div class="quant-driver-col">
               <div class="quant-driver-main">${escapeHtml(clampSummary(item.driver_summary || "", 180))}</div>
               <div class="chip-strip">
+                ${topFactors
+                  .map((factor) => `<span class="chip signal">${escapeHtml(`${factor.name} ${absString(factor.contribution, 2)}`)}</span>`)
+                  .join("")}
                 ${(item.drivers || [])
-                  .slice(0, 3)
+                  .slice(0, 2)
                   .map((driver) => `<span class="chip term">${escapeHtml(clampSummary(driver, 38))}</span>`)
+                  .join("")}
+                ${hedges
+                  .slice(0, 2)
+                  .map((hedge) => `<button class="reaction-pill" type="button" data-open-asset="${hedge}"><span>HEDGE</span><strong>${escapeHtml(hedge)}</strong><small>${escapeHtml(item.risk_budget?.regime || "")}</small></button>`)
                   .join("")}
               </div>
             </div>
