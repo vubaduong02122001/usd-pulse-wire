@@ -1206,7 +1206,7 @@ button {
 
 .analysis-head,
 .analysis-row {
-  grid-template-columns: 68px 178px 148px 260px 230px minmax(0, 1fr);
+  grid-template-columns: 68px 178px 148px 240px 220px 180px minmax(0, 1fr);
 }
 
 .analysis-row {
@@ -1220,6 +1220,7 @@ button {
 .analysis-phase-cell,
 .analysis-metric-cell,
 .analysis-map-cell,
+.analysis-stat-cell,
 .analysis-summary-cell {
   min-width: 0;
 }
@@ -1227,6 +1228,7 @@ button {
 .analysis-tf-cell strong,
 .analysis-hold-cell,
 .analysis-map-cell,
+.analysis-stat-cell,
 .analysis-summary-cell,
 .analysis-metric-cell {
   font-family: "IBM Plex Mono", monospace;
