@@ -970,6 +970,157 @@ button {
   letter-spacing: 0.05em;
 }
 
+.quant-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.62fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.quant-regime-panel {
+  min-width: 0;
+}
+
+.quant-regime-grid,
+.quant-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.quant-regime-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quant-regime-card,
+.quant-row {
+  border: 1px solid var(--line-bright);
+  background: linear-gradient(180deg, #111924 0%, #0a1119 100%);
+}
+
+.quant-regime-card {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.quant-regime-label,
+.quant-subline,
+.quant-asset-meta,
+.quant-driver-main {
+  color: var(--muted);
+}
+
+.quant-regime-label,
+.quant-bias,
+.quant-range-main,
+.quant-asset-button,
+.quant-subline {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.quant-focus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#quantActions .summary-line {
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: start;
+}
+
+#quantActions .summary-line strong {
+  text-align: left;
+  line-height: 1.5;
+  color: var(--soft);
+}
+
+.quant-head,
+.quant-row {
+  grid-template-columns: 108px 170px 164px 232px minmax(0, 1fr);
+}
+
+.quant-row {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 9px;
+}
+
+.quant-asset-col,
+.quant-bias-col,
+.quant-move-col,
+.quant-range-col,
+.quant-driver-col {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.quant-asset-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: fit-content;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line-bright);
+  color: var(--orange-2);
+}
+
+.quant-asset-button:hover {
+  border-color: #5a6f88;
+}
+
+.quant-bias-col {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quant-bias {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--line-bright);
+  width: fit-content;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.quant-bias.bullish {
+  color: var(--green);
+}
+
+.quant-bias.bearish {
+  color: var(--red);
+}
+
+.quant-bias.neutral,
+.quant-bias.normal {
+  color: var(--soft);
+}
+
+.quant-bias.compressed {
+  color: var(--blue);
+}
+
+.quant-bias.stressed {
+  color: var(--orange-2);
+}
+
+.quant-move-col strong,
+.quant-range-main {
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.quant-driver-main {
+  line-height: 1.45;
+}
+
 .chart-note {
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1157,6 +1308,7 @@ button {
 
 @media (max-width: 1320px) {
   .secondary-grid,
+  .quant-shell,
   .calendar-shell,
   .chart-grid {
     grid-template-columns: 1fr;
@@ -1184,6 +1336,7 @@ button {
   .topbar,
   .primary-grid,
   .secondary-grid,
+  .quant-regime-grid,
   .command-row,
   .metric-grid,
   .market-grid {
@@ -1197,7 +1350,9 @@ button {
   }
 
   .table-head,
-  .news-row {
+  .news-row,
+  .quant-row,
+  .quant-head {
     grid-template-columns: 1fr;
   }
 
