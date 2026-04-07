@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.services.asset_analysis import AssetAnalysisService
 from app.services.calendar_data import EconomicCalendarService
 from app.services.hub import NewsHub
 from app.services.market_data import MarketDataService
@@ -24,6 +25,7 @@ market_data = MarketDataService(settings)
 calendar_data = EconomicCalendarService(settings)
 speech_data = SpeechTapeService(settings)
 quant_outlook = QuantOutlookService(settings, hub, market_data, calendar_data, speech_data)
+asset_analysis = AssetAnalysisService(settings, hub, market_data, calendar_data, speech_data)
 
 
 @asynccontextmanager
@@ -32,11 +34,13 @@ async def lifespan(_: FastAPI):
     await market_data.start()
     await speech_data.start()
     await quant_outlook.start()
+    await asset_analysis.start()
     await hub.start()
     try:
         yield
     finally:
         await hub.stop()
+        await asset_analysis.stop()
         await quant_outlook.stop()
         await speech_data.stop()
         await market_data.stop()
@@ -160,6 +164,18 @@ async def trump_tape_snapshot(force: bool = Query(default=False)):
 @app.get("/api/quant-outlook")
 async def quant_snapshot(force: bool = Query(default=False)):
     return no_store_json((await quant_outlook.snapshot(force=force)).model_dump(mode="json"))
+
+
+@app.get("/api/asset-analysis")
+async def asset_analysis_snapshot(
+    asset: str = Query(..., min_length=1),
+    force: bool = Query(default=False),
+):
+    try:
+        snapshot = await asset_analysis.snapshot(asset=asset, force=force)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return no_store_json(snapshot.model_dump(mode="json"))
 
 
 @app.get("/api/asset-chart")
