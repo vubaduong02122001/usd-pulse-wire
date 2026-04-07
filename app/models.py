@@ -285,6 +285,24 @@ class AssetTradePlan(BaseModel):
     update_note: str | None = None
 
 
+class SignalPerformanceStats(BaseModel):
+    scope: str
+    sample_size: int
+    horizon_bars: int
+    win_rate_pct: float | None = None
+    avg_r_multiple: float | None = None
+    avg_win_r: float | None = None
+    avg_loss_r: float | None = None
+    reward_risk_ratio: float | None = None
+    profit_factor: float | None = None
+    expectancy_r: float | None = None
+    max_drawdown_r: float | None = None
+    planned_reward_risk: float | None = None
+    planned_risk_pct: float | None = None
+    planned_reward_pct: float | None = None
+    note: str | None = None
+
+
 class AssetAnalysisSnapshot(BaseModel):
     updated_at: datetime
     source: str
@@ -305,4 +323,6 @@ class AssetAnalysisSnapshot(BaseModel):
     drivers: list[str]
     timeframes: list[AnalysisTimeframeState]
     trade_plan: AssetTradePlan
+    performance: SignalPerformanceStats
+    timeframe_performance: list[SignalPerformanceStats]
     formulas: list[AnalysisFormula]
