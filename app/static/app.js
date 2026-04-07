@@ -47,6 +47,8 @@ const dom = {
   analysisStatus: document.getElementById("analysisStatus"),
   analysisOverview: document.getElementById("analysisOverview"),
   analysisPlan: document.getElementById("analysisPlan"),
+  analysisPerfHeadline: document.getElementById("analysisPerfHeadline"),
+  analysisPerfSummary: document.getElementById("analysisPerfSummary"),
   analysisTimeframeList: document.getElementById("analysisTimeframeList"),
   chartGrid: document.getElementById("chartGrid"),
   toastStack: document.getElementById("toastStack"),
@@ -989,15 +991,20 @@ function renderAssetAnalysis() {
   if (!state.analysis) {
     dom.analysisSignal.textContent = "NO SIGNAL";
     dom.analysisStatus.textContent = "STANDBY";
+    dom.analysisPerfHeadline.textContent = "REPLAY";
     dom.analysisOverview.innerHTML = `<div class="empty-state">Select an asset to load the analysis engine.</div>`;
     dom.analysisPlan.innerHTML = "";
+    dom.analysisPerfSummary.innerHTML = "";
     dom.analysisTimeframeList.innerHTML = `<div class="empty-state">No multi-timeframe analysis yet.</div>`;
     return;
   }
 
   const data = state.analysis;
+  const aggregatePerf = data.performance || {};
+  const timeframePerfMap = Object.fromEntries((data.timeframe_performance || []).map((item) => [item.scope, item]));
   dom.analysisSignal.textContent = `${data.asset} ${String(data.aggregate_signal || "avoid").toUpperCase()}`;
   dom.analysisStatus.textContent = String(data.trade_plan?.status || "standby").toUpperCase();
+  dom.analysisPerfHeadline.textContent = `${aggregatePerf.sample_size || 0} TRADES`;
   dom.analysisOverview.innerHTML = [
     ["Primary", `${data.primary_timeframe} / ${titleCase(data.dow_phase)}`],
     ["Secondary", `${data.secondary_timeframe} / ${titleCase(data.hold_decision)}`],
@@ -1035,9 +1042,30 @@ function renderAssetAnalysis() {
     )
     .join("");
 
+  dom.analysisPerfSummary.innerHTML = [
+    ["Win Rate", aggregatePerf.win_rate_pct === null || aggregatePerf.win_rate_pct === undefined ? "--" : `${Number(aggregatePerf.win_rate_pct).toFixed(1)}%`],
+    ["Planned RR", aggregatePerf.planned_reward_risk === null || aggregatePerf.planned_reward_risk === undefined ? "--" : `${Number(aggregatePerf.planned_reward_risk).toFixed(2)}R`],
+    ["Expectancy", aggregatePerf.expectancy_r === null || aggregatePerf.expectancy_r === undefined ? "--" : `${absString(aggregatePerf.expectancy_r, 2)}R`],
+    ["Profit Factor", aggregatePerf.profit_factor === null || aggregatePerf.profit_factor === undefined ? "--" : Number(aggregatePerf.profit_factor).toFixed(2)],
+    ["Max DD", aggregatePerf.max_drawdown_r === null || aggregatePerf.max_drawdown_r === undefined ? "--" : `${Number(aggregatePerf.max_drawdown_r).toFixed(2)}R`],
+    ["Risk Map", aggregatePerf.planned_risk_pct === null || aggregatePerf.planned_reward_pct === null || aggregatePerf.planned_risk_pct === undefined || aggregatePerf.planned_reward_pct === undefined ? "--" : `${moveString(aggregatePerf.planned_risk_pct)} risk | ${moveString(aggregatePerf.planned_reward_pct)} reward`],
+    ["Note", aggregatePerf.note || "--"],
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="summary-line">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
   dom.analysisTimeframeList.innerHTML = (data.timeframes || [])
     .map(
-      (item) => `
+      (item) => {
+        const perf = timeframePerfMap[item.timeframe] || {};
+        return `
         <article class="analysis-row">
           <div class="analysis-tf-cell">
             <strong>${escapeHtml(item.timeframe)}</strong>
@@ -1058,9 +1086,15 @@ function renderAssetAnalysis() {
             <div class="quant-subline">sup ${item.support === null || item.support === undefined ? "--" : formatCompactNumber(item.support, 4)} | res ${item.resistance === null || item.resistance === undefined ? "--" : formatCompactNumber(item.resistance, 4)}</div>
             <div class="quant-subline">stop ${item.stop_level === null || item.stop_level === undefined ? "--" : formatCompactNumber(item.stop_level, 4)} | tp ${item.take_profit_level === null || item.take_profit_level === undefined ? "--" : formatCompactNumber(item.take_profit_level, 4)}</div>
           </div>
+          <div class="analysis-stat-cell">
+            <div class="quant-subline">wr ${perf.win_rate_pct === null || perf.win_rate_pct === undefined ? "--" : `${Number(perf.win_rate_pct).toFixed(1)}%`} | rr ${perf.reward_risk_ratio === null || perf.reward_risk_ratio === undefined ? "--" : Number(perf.reward_risk_ratio).toFixed(2)}</div>
+            <div class="quant-subline">avgR ${perf.avg_r_multiple === null || perf.avg_r_multiple === undefined ? "--" : absString(perf.avg_r_multiple, 2)} | n ${escapeHtml(String(perf.sample_size ?? 0))}</div>
+            <div class="quant-subline">pf ${perf.profit_factor === null || perf.profit_factor === undefined ? "--" : Number(perf.profit_factor).toFixed(2)} | dd ${perf.max_drawdown_r === null || perf.max_drawdown_r === undefined ? "--" : Number(perf.max_drawdown_r).toFixed(2)}</div>
+          </div>
           <div class="analysis-summary-cell">${escapeHtml(item.summary || "")}</div>
         </article>
-      `,
+      `;
+      },
     )
     .join("");
 }
