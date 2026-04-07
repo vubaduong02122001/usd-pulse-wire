@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=20260407c" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260407d" />
   </head>
   <body>
     <div class="terminal">
@@ -234,6 +234,35 @@
         </section>
       </section>
 
+      <section class="panel quant-panel">
+        <div class="panel-header">
+          <span class="panel-code">QUANT</span>
+          <strong>Forecast / Risk Engine</strong>
+        </div>
+
+        <div class="quant-shell">
+          <section class="subpanel quant-regime-panel">
+            <div class="subpanel-head">
+              <span>RISK REGIME</span>
+              <strong id="quantStamp">LOADING</strong>
+            </div>
+            <div id="quantRegime" class="quant-regime-grid"></div>
+            <div id="quantActions" class="summary-lines"></div>
+          </section>
+
+          <section class="quant-table-wrap">
+            <div class="table-head quant-head">
+              <span>ASSET</span>
+              <span>BIAS</span>
+              <span>MOVE / CONF</span>
+              <span>RANGE / RISK</span>
+              <span>DRIVERS</span>
+            </div>
+            <div id="quantList" class="quant-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section class="panel chart-panel">
         <div class="panel-header">
           <span class="panel-code">CHART LAB</span>
@@ -253,6 +282,6 @@
     <div class="toast-stack" id="toastStack"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-    <script type="module" src="/static/app.js?v=20260407c"></script>
+    <script type="module" src="/static/app.js?v=20260407d"></script>
   </body>
 </html>
