@@ -240,3 +240,69 @@ class QuantSnapshot(BaseModel):
     source: str
     regime: QuantRegime
     assets: list[QuantAssetOutlook]
+
+
+class AnalysisFormula(BaseModel):
+    name: str
+    formula: str
+    description: str
+
+
+class AnalysisTimeframeState(BaseModel):
+    timeframe: str
+    bars_used: int
+    bias: str
+    signal: str
+    hold_state: str
+    dow_phase: str
+    confidence: int
+    trend_score: float
+    momentum_score: float
+    reversion_score: float
+    volatility_score: float
+    microstructure_score: float
+    adx: float | None = None
+    slope_tstat: float | None = None
+    ema_spread_pct: float | None = None
+    support: float | None = None
+    resistance: float | None = None
+    stop_level: float | None = None
+    take_profit_level: float | None = None
+    summary: str
+
+
+class AssetTradePlan(BaseModel):
+    action: str
+    status: str
+    confidence: int
+    thesis: str
+    entry_zone_low: float | None = None
+    entry_zone_high: float | None = None
+    stop_level: float | None = None
+    take_profit_level: float | None = None
+    hold_if: list[str]
+    avoid_if: list[str]
+    update_note: str | None = None
+
+
+class AssetAnalysisSnapshot(BaseModel):
+    updated_at: datetime
+    source: str
+    asset: str
+    label: str
+    group: str
+    spot: float | None = None
+    primary_timeframe: str
+    secondary_timeframe: str
+    execution_timeframe: str
+    aggregate_signal: str
+    hold_decision: str
+    dow_phase: str
+    confidence: int
+    risk_state: str
+    model_summary: str
+    update_note: str | None = None
+    drivers: list[str]
+    timeframes: list[AnalysisTimeframeState]
+    trade_plan: AssetTradePlan
+    formulas: list[AnalysisFormula]
