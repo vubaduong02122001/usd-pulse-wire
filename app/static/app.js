@@ -47,7 +47,6 @@ const dom = {
   analysisStatus: document.getElementById("analysisStatus"),
   analysisOverview: document.getElementById("analysisOverview"),
   analysisPlan: document.getElementById("analysisPlan"),
-  analysisFormulaList: document.getElementById("analysisFormulaList"),
   analysisTimeframeList: document.getElementById("analysisTimeframeList"),
   chartGrid: document.getElementById("chartGrid"),
   toastStack: document.getElementById("toastStack"),
@@ -992,7 +991,6 @@ function renderAssetAnalysis() {
     dom.analysisStatus.textContent = "STANDBY";
     dom.analysisOverview.innerHTML = `<div class="empty-state">Select an asset to load the analysis engine.</div>`;
     dom.analysisPlan.innerHTML = "";
-    dom.analysisFormulaList.innerHTML = "";
     dom.analysisTimeframeList.innerHTML = `<div class="empty-state">No multi-timeframe analysis yet.</div>`;
     return;
   }
@@ -1033,20 +1031,6 @@ function renderAssetAnalysis() {
           <span>${escapeHtml(label)}</span>
           <strong>${escapeHtml(value)}</strong>
         </div>
-      `,
-    )
-    .join("");
-
-  dom.analysisFormulaList.innerHTML = (data.formulas || [])
-    .map(
-      (item, index) => `
-        <details class="analysis-formula-card" ${index < 2 ? "open" : ""}>
-          <summary>${escapeHtml(item.name)}</summary>
-          <div class="analysis-formula-body">
-            <div class="analysis-formula-text">${escapeHtml(item.formula)}</div>
-            <div class="terminal-note">${escapeHtml(item.description)}</div>
-          </div>
-        </details>
       `,
     )
     .join("");
