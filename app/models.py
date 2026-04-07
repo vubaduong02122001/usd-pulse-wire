@@ -156,13 +156,50 @@ class AssetChart(BaseModel):
 
 class QuantRegime(BaseModel):
     label: str
+    model_version: str
     usd_bias: str
     volatility_state: str
     headline_risk: str
     confidence: int
+    event_intensity: float
+    cross_asset_dispersion: float
     summary: str
     actions: list[str]
     focus_assets: list[str]
+
+
+class QuantFactorLeg(BaseModel):
+    name: str
+    score: float
+    weight: float
+    contribution: float
+    state: str
+    note: str | None = None
+
+
+class QuantMicrostructure(BaseModel):
+    mode: str
+    pressure: str
+    liquidity_state: str
+    spread_bps: float | None = None
+    order_book_imbalance: float | None = None
+    volume_zscore: float | None = None
+    close_location: float | None = None
+    wick_skew: float | None = None
+    range_efficiency: float | None = None
+    range_expansion: float | None = None
+    note: str | None = None
+
+
+class QuantRiskBudget(BaseModel):
+    regime: str
+    guidance: str
+    var_95_1d_pct: float | None = None
+    expected_shortfall_pct: float | None = None
+    position_risk_pct: float | None = None
+    max_gross_pct: float | None = None
+    hedge_ratio: float | None = None
+    hedge_assets: list[str]
 
 
 class QuantAssetOutlook(BaseModel):
@@ -170,8 +207,11 @@ class QuantAssetOutlook(BaseModel):
     label: str
     group: str
     spot: float | None = None
+    model_state: str
     one_day_bias: str
     one_week_bias: str
+    one_day_return_pct: float | None = None
+    one_week_return_pct: float | None = None
     expected_move_pct_1d: float | None = None
     expected_move_pct_1w: float | None = None
     range_low: float | None = None
@@ -182,10 +222,17 @@ class QuantAssetOutlook(BaseModel):
     risk_stance: str
     confidence: int
     trend_score: float
+    mean_reversion_score: float
     news_score: float
     event_score: float
+    cross_asset_score: float
+    microstructure_score: float
+    ensemble_score: float
     driver_summary: str
     drivers: list[str]
+    factors: list[QuantFactorLeg]
+    microstructure: QuantMicrostructure
+    risk_budget: QuantRiskBudget
 
 
 class QuantSnapshot(BaseModel):
