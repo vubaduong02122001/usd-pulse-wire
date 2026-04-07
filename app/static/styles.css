@@ -332,10 +332,10 @@ button {
 .primary-grid {
   display: grid;
   grid-template-columns:
-    minmax(248px, 0.84fr)
-    minmax(248px, 0.84fr)
-    minmax(700px, 1.82fr)
-    minmax(248px, 0.78fr);
+    minmax(0, 0.84fr)
+    minmax(0, 0.84fr)
+    minmax(0, 1.82fr)
+    minmax(0, 0.78fr);
   gap: 6px;
   margin-top: 6px;
   align-items: start;
@@ -343,7 +343,7 @@ button {
 
 .secondary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.62fr) minmax(312px, 0.82fr);
+  grid-template-columns: minmax(0, 1.62fr) minmax(0, 0.82fr);
   gap: 6px;
   margin-top: 6px;
   align-items: start;
@@ -355,6 +355,7 @@ button {
   gap: 8px;
   padding: 8px;
   min-height: 0;
+  min-width: 0;
 }
 
 .panel-header,
@@ -557,14 +558,18 @@ button {
 .news-frame {
   display: grid;
   gap: 5px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .table-head,
 .news-row {
   display: grid;
-  grid-template-columns: 62px 74px 112px minmax(240px, 1.18fr) minmax(204px, 0.88fr);
+  grid-template-columns: 60px 82px minmax(112px, 0.42fr) minmax(0, 1.18fr) minmax(0, 0.88fr);
   gap: 8px;
   align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 
 .table-head {
@@ -580,12 +585,14 @@ button {
 .feed-list {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .news-row {
   position: relative;
   padding: 8px 9px;
   min-height: 118px;
+  overflow: hidden;
 }
 
 .news-row::before {
@@ -626,6 +633,8 @@ button {
   display: grid;
   gap: 4px;
   font-size: 0.76rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .row-impact {
@@ -660,6 +669,7 @@ button {
 .row-main {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 .headline-link {
@@ -668,6 +678,7 @@ button {
   line-height: 1.28;
   font-weight: 600;
   font-size: 0.94rem;
+  overflow-wrap: anywhere;
 }
 
 .headline-link:hover,
@@ -684,6 +695,7 @@ button {
   -webkit-line-clamp: 2;
   overflow: hidden;
   font-size: 0.84rem;
+  overflow-wrap: anywhere;
 }
 
 .row-signals,
@@ -724,6 +736,8 @@ button {
 .row-reaction {
   display: grid;
   gap: 6px;
+  min-width: 0;
+  align-content: start;
 }
 
 .reaction-tone {
@@ -742,7 +756,7 @@ button {
 
 .reaction-pill {
   display: inline-grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: auto auto minmax(0, auto);
   align-items: center;
   gap: 6px;
   min-height: 22px;
@@ -751,6 +765,7 @@ button {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   color: var(--text);
+  max-width: 100%;
 }
 
 .reaction-pill strong {
@@ -1132,6 +1147,11 @@ button {
 
   .news-panel {
     grid-column: 1 / span 2;
+  }
+
+  .table-head,
+  .news-row {
+    grid-template-columns: 58px 78px minmax(104px, 0.4fr) minmax(0, 1.14fr) minmax(0, 0.86fr);
   }
 }
 
