@@ -152,3 +152,44 @@ class AssetChart(BaseModel):
     interval: str
     range: str
     bars: list[PriceBar]
+
+
+class QuantRegime(BaseModel):
+    label: str
+    usd_bias: str
+    volatility_state: str
+    headline_risk: str
+    confidence: int
+    summary: str
+    actions: list[str]
+    focus_assets: list[str]
+
+
+class QuantAssetOutlook(BaseModel):
+    asset: str
+    label: str
+    group: str
+    spot: float | None = None
+    one_day_bias: str
+    one_week_bias: str
+    expected_move_pct_1d: float | None = None
+    expected_move_pct_1w: float | None = None
+    range_low: float | None = None
+    range_high: float | None = None
+    stop_level: float | None = None
+    take_profit_level: float | None = None
+    volatility_regime: str
+    risk_stance: str
+    confidence: int
+    trend_score: float
+    news_score: float
+    event_score: float
+    driver_summary: str
+    drivers: list[str]
+
+
+class QuantSnapshot(BaseModel):
+    updated_at: datetime
+    source: str
+    regime: QuantRegime
+    assets: list[QuantAssetOutlook]
