@@ -516,7 +516,7 @@ function renderMarketMeta() {
   const lines = [
     ["Source", state.market?.source || "--"],
     ["Quotes", String(state.market?.quotes?.length || 0)],
-    ["Cache", "1s app refresh"],
+    ["Cache", "1s UI / provider paced"],
     ["Last quote", state.market?.updated_at ? formatDateTime(state.market.updated_at) : "--"],
   ];
 
