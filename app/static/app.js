@@ -1,5 +1,6 @@
 const MARKET_REFRESH_INTERVAL_MS = 1000;
 const AUX_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const ANALYSIS_REFRESH_INTERVAL_MS = 15 * 1000;
 const CHART_REFRESH_INTERVAL_MS = 30 * 1000;
 const FEED_RENDER_LIMIT = 36;
 const CHART_TIMEFRAMES = ["1D", "5D", "1M", "3M", "1Y"];
@@ -40,6 +41,14 @@ const dom = {
   quantRegime: document.getElementById("quantRegime"),
   quantActions: document.getElementById("quantActions"),
   quantList: document.getElementById("quantList"),
+  analysisAssetSelect: document.getElementById("analysisAssetSelect"),
+  analysisStamp: document.getElementById("analysisStamp"),
+  analysisSignal: document.getElementById("analysisSignal"),
+  analysisStatus: document.getElementById("analysisStatus"),
+  analysisOverview: document.getElementById("analysisOverview"),
+  analysisPlan: document.getElementById("analysisPlan"),
+  analysisFormulaList: document.getElementById("analysisFormulaList"),
+  analysisTimeframeList: document.getElementById("analysisTimeframeList"),
   chartGrid: document.getElementById("chartGrid"),
   toastStack: document.getElementById("toastStack"),
   impactFilters: Array.from(document.querySelectorAll("[data-impact]")),
@@ -52,13 +61,17 @@ const state = {
   calendar: null,
   speeches: null,
   quant: null,
+  analysis: null,
+  analysisAsset: BOOT_ASSET || "DXY",
   search: "",
   impact: "all",
   connectionState: "connecting",
   stream: null,
   reconnectTimer: null,
+  analysisRefreshTimer: null,
   marketBusy: false,
   macroBusy: false,
+  analysisBusy: false,
   refreshBusy: false,
   activeChartSlot: 0,
   chartSlots: Array.from({ length: 4 }, (_, index) => ({
@@ -286,6 +299,24 @@ function getFilteredItems() {
 
 function getMarketQuote(asset) {
   return state.market?.quotes?.find((quote) => quote.label === asset) ?? null;
+}
+
+function availableAssets() {
+  const fromMarket = (state.market?.quotes || []).map((quote) => quote.label);
+  return fromMarket.length
+    ? fromMarket
+    : ["DXY", "EURUSD", "USDJPY", "GBPUSD", "GOLD", "WTI", "US10Y", "SPX", "BTCUSD", "ETHUSD"];
+}
+
+function scheduleAnalysisRefresh(delay = 1200) {
+  if (!state.analysisAsset) return;
+  if (state.analysisRefreshTimer) {
+    window.clearTimeout(state.analysisRefreshTimer);
+  }
+  state.analysisRefreshTimer = window.setTimeout(() => {
+    state.analysisRefreshTimer = null;
+    refreshAssetAnalysis(true);
+  }, delay);
 }
 
 async function fetchJSON(url, options = {}) {
@@ -941,6 +972,115 @@ function renderQuant() {
       .join("") || `<div class="empty-state">No quant outlook yet.</div>`;
 }
 
+function renderAnalysisAssetSelect() {
+  if (!dom.analysisAssetSelect) return;
+  const options = availableAssets();
+  if (!options.includes(state.analysisAsset)) {
+    state.analysisAsset = options[0] || "DXY";
+  }
+  dom.analysisAssetSelect.innerHTML = options
+    .map((asset) => `<option value="${asset}" ${asset === state.analysisAsset ? "selected" : ""}>${asset}</option>`)
+    .join("");
+}
+
+function renderAssetAnalysis() {
+  renderAnalysisAssetSelect();
+  dom.analysisStamp.textContent = state.analysis?.updated_at ? formatAgo(state.analysis.updated_at) : "WAITING";
+
+  if (!state.analysis) {
+    dom.analysisSignal.textContent = "NO SIGNAL";
+    dom.analysisStatus.textContent = "STANDBY";
+    dom.analysisOverview.innerHTML = `<div class="empty-state">Select an asset to load the analysis engine.</div>`;
+    dom.analysisPlan.innerHTML = "";
+    dom.analysisFormulaList.innerHTML = "";
+    dom.analysisTimeframeList.innerHTML = `<div class="empty-state">No multi-timeframe analysis yet.</div>`;
+    return;
+  }
+
+  const data = state.analysis;
+  dom.analysisSignal.textContent = `${data.asset} ${String(data.aggregate_signal || "avoid").toUpperCase()}`;
+  dom.analysisStatus.textContent = String(data.trade_plan?.status || "standby").toUpperCase();
+  dom.analysisOverview.innerHTML = [
+    ["Primary", `${data.primary_timeframe} / ${titleCase(data.dow_phase)}`],
+    ["Secondary", `${data.secondary_timeframe} / ${titleCase(data.hold_decision)}`],
+    ["Risk", `${titleCase(data.risk_state)} / conf ${data.confidence}`],
+    ["Update", data.update_note || "Realtime thesis stable"],
+    ["Drivers", (data.drivers || []).slice(0, 3).join(" | ") || "--"],
+    ["Model", data.model_summary || "--"],
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="summary-line">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
+  const plan = data.trade_plan || {};
+  dom.analysisPlan.innerHTML = [
+    ["Action", `${String(plan.action || "avoid").toUpperCase()} / ${String(plan.status || "standby").toUpperCase()}`],
+    ["Entry", plan.entry_zone_low === null || plan.entry_zone_high === null || plan.entry_zone_low === undefined || plan.entry_zone_high === undefined ? "--" : `${formatCompactNumber(plan.entry_zone_low, 4)} - ${formatCompactNumber(plan.entry_zone_high, 4)}`],
+    ["Stop", plan.stop_level === null || plan.stop_level === undefined ? "--" : formatCompactNumber(plan.stop_level, 4)],
+    ["Target", plan.take_profit_level === null || plan.take_profit_level === undefined ? "--" : formatCompactNumber(plan.take_profit_level, 4)],
+    ["Hold If", (plan.hold_if || []).join(" | ") || "--"],
+    ["Avoid If", (plan.avoid_if || []).join(" | ") || "--"],
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="summary-line">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+
+  dom.analysisFormulaList.innerHTML = (data.formulas || [])
+    .map(
+      (item, index) => `
+        <details class="analysis-formula-card" ${index < 2 ? "open" : ""}>
+          <summary>${escapeHtml(item.name)}</summary>
+          <div class="analysis-formula-body">
+            <div class="analysis-formula-text">${escapeHtml(item.formula)}</div>
+            <div class="terminal-note">${escapeHtml(item.description)}</div>
+          </div>
+        </details>
+      `,
+    )
+    .join("");
+
+  dom.analysisTimeframeList.innerHTML = (data.timeframes || [])
+    .map(
+      (item) => `
+        <article class="analysis-row">
+          <div class="analysis-tf-cell">
+            <strong>${escapeHtml(item.timeframe)}</strong>
+            <div class="quant-subline">${item.bars_used} bars</div>
+          </div>
+          <div class="analysis-phase-cell">
+            <span class="quant-bias ${item.bias}">${escapeHtml(titleCase(item.bias))}</span>
+            <span class="quant-bias">${escapeHtml(titleCase(item.dow_phase))}</span>
+            <span class="quant-bias ${item.signal === "long" ? "bullish" : item.signal === "short" ? "bearish" : "neutral"}">${escapeHtml(String(item.signal || "avoid").toUpperCase())}</span>
+          </div>
+          <div class="analysis-hold-cell">${escapeHtml(titleCase(item.hold_state || "do-not-hold"))}</div>
+          <div class="analysis-metric-cell">
+            <div class="quant-subline">trend ${escapeHtml(absString(item.trend_score, 2))} | mom ${escapeHtml(absString(item.momentum_score, 2))}</div>
+            <div class="quant-subline">rev ${escapeHtml(absString(item.reversion_score, 2))} | vol ${escapeHtml(absString(item.volatility_score, 2))}</div>
+            <div class="quant-subline">micro ${escapeHtml(absString(item.microstructure_score, 2))} | ADX ${escapeHtml(String(item.adx ?? "--"))}</div>
+          </div>
+          <div class="analysis-map-cell">
+            <div class="quant-subline">sup ${item.support === null || item.support === undefined ? "--" : formatCompactNumber(item.support, 4)} | res ${item.resistance === null || item.resistance === undefined ? "--" : formatCompactNumber(item.resistance, 4)}</div>
+            <div class="quant-subline">stop ${item.stop_level === null || item.stop_level === undefined ? "--" : formatCompactNumber(item.stop_level, 4)} | tp ${item.take_profit_level === null || item.take_profit_level === undefined ? "--" : formatCompactNumber(item.take_profit_level, 4)}</div>
+          </div>
+          <div class="analysis-summary-cell">${escapeHtml(item.summary || "")}</div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
 function renderAllViews() {
   renderConnectionState();
   renderTickerTape();
@@ -953,6 +1093,7 @@ function renderAllViews() {
   renderSources();
   renderFeed();
   renderQuant();
+  renderAssetAnalysis();
 }
 
 // chart functions
@@ -1261,6 +1402,22 @@ async function refreshMacroPanels(force = false) {
   }
 }
 
+async function refreshAssetAnalysis(force = false) {
+  if (state.analysisBusy || !state.analysisAsset) return;
+  state.analysisBusy = true;
+  try {
+    state.analysis = await fetchJSON(
+      `/api/asset-analysis?asset=${encodeURIComponent(state.analysisAsset)}&force=${force ? "true" : "false"}`,
+    );
+    renderAssetAnalysis();
+  } catch (error) {
+    console.error(error);
+    pushToast("Analysis Error", error.message);
+  } finally {
+    state.analysisBusy = false;
+  }
+}
+
 async function triggerManualRefresh() {
   if (state.refreshBusy) return;
   state.refreshBusy = true;
@@ -1269,7 +1426,7 @@ async function triggerManualRefresh() {
     const payload = await fetchJSON("/api/refresh", { method: "POST" });
     (payload.inserted || []).forEach((item) => upsertNewsItem(item));
     state.status = payload.status || state.status;
-    await Promise.all([refreshMarket(true), refreshMacroPanels(true)]);
+    await Promise.all([refreshMarket(true), refreshMacroPanels(true), refreshAssetAnalysis(true)]);
     renderAllViews();
     pushToast("Force Refresh", `${payload.inserted?.length || 0} new rows inserted.`);
   } catch (error) {
@@ -1289,6 +1446,7 @@ function handleIncomingNews(item) {
     tracked_items: state.items.length,
   };
   renderAllViews();
+  scheduleAnalysisRefresh(item.impact_level === "high" ? 400 : 1200);
   if (item.impact_level === "high") {
     pushToast("High Impact", clampSummary(item.title, 90));
   }
@@ -1354,6 +1512,11 @@ function wireEvents() {
     renderAllViews();
   });
 
+  dom.analysisAssetSelect?.addEventListener("change", (event) => {
+    state.analysisAsset = event.target.value;
+    refreshAssetAnalysis(true);
+  });
+
   dom.refreshButton?.addEventListener("click", () => {
     triggerManualRefresh();
   });
@@ -1371,6 +1534,9 @@ function wireEvents() {
     if (openAsset) {
       event.preventDefault();
       event.stopPropagation();
+      state.analysisAsset = openAsset.dataset.openAsset;
+      renderAnalysisAssetSelect();
+      refreshAssetAnalysis(true);
       openChartForAsset(openAsset.dataset.openAsset);
       return;
     }
@@ -1427,9 +1593,11 @@ function wireEvents() {
 
 async function bootstrap() {
   renderChartGrid();
+  renderAssetAnalysis();
   wireEvents();
   try {
     await Promise.all([loadInitial(), refreshMacroPanels(false)]);
+    await refreshAssetAnalysis(true);
     if (BOOT_ASSET) {
       await openChartForAsset(BOOT_ASSET);
     } else {
@@ -1446,6 +1614,7 @@ async function bootstrap() {
   connectStream();
   window.setInterval(() => refreshMarket(true), MARKET_REFRESH_INTERVAL_MS);
   window.setInterval(() => refreshMacroPanels(false), AUX_REFRESH_INTERVAL_MS);
+  window.setInterval(() => refreshAssetAnalysis(false), ANALYSIS_REFRESH_INTERVAL_MS);
   window.setInterval(() => refreshOpenCharts(), CHART_REFRESH_INTERVAL_MS);
 }
 
