@@ -16,6 +16,7 @@ from app.models import (
     NewsItem,
     PriceBar,
     ScheduledEvent,
+    SignalPerformanceStats,
     SpeechTapeItem,
 )
 from app.services.calendar_data import EconomicCalendarService
@@ -53,6 +54,17 @@ TIMEFRAME_LIMITS = {
     "1h": 180,
     "2h": 160,
     "4h": 140,
+}
+BACKTEST_HORIZONS = {
+    "1m": 36,
+    "3m": 30,
+    "5m": 24,
+    "15m": 18,
+    "30m": 14,
+    "45m": 12,
+    "1h": 10,
+    "2h": 8,
+    "4h": 6,
 }
 TF_MACRO_WEIGHTS = {
     "1m": 0.05,
@@ -130,6 +142,12 @@ class TfMetrics:
     close_location: float
     volume_zscore: float | None
     range_expansion: float
+
+
+@dataclass(frozen=True, slots=True)
+class TradeSimulation:
+    r_multiple: float
+    exit_reason: str
 
 
 def clamp(value: float, minimum: float, maximum: float) -> float:
@@ -415,6 +433,7 @@ class AssetAnalysisService:
                 now=now,
                 asset=config,
                 quote=quote,
+                timeframe_bars=timeframe_bars,
                 timeframe_states=timeframe_states,
                 news_drivers=news_drivers,
                 cross_drivers=cross_drivers,
@@ -830,32 +849,31 @@ class AssetAnalysisService:
         now: datetime,
         asset: TrackedAsset,
         quote: AssetQuote | None,
+        timeframe_bars: dict[str, list[PriceBar]],
         timeframe_states: list[AnalysisTimeframeState],
         news_drivers: list[str],
         cross_drivers: list[str],
         event_drivers: list[str],
         event_intensity: float,
     ) -> AssetAnalysisSnapshot:
-        state_map = {state.timeframe: state for state in timeframe_states}
-        primary = state_map[PRIMARY_TF]
-        secondary = state_map[SECONDARY_TF]
-        execution = state_map[EXECUTION_TF]
-        micro = state_map[MICRO_TF]
-
-        long_alignment = sum(1 for state in (primary, secondary, execution, micro) if state.signal == "long")
-        short_alignment = sum(1 for state in (primary, secondary, execution, micro) if state.signal == "short")
-        if long_alignment >= 3 and primary.bias == "bullish" and secondary.bias != "bearish":
-            aggregate_signal = "long"
-        elif short_alignment >= 3 and primary.bias == "bearish" and secondary.bias != "bullish":
-            aggregate_signal = "short"
-        else:
-            aggregate_signal = "avoid"
-
-        risk_state = "event-lock" if event_intensity >= 3.2 else "high-vol" if max(state.volatility_score for state in timeframe_states) >= 3 else "normal"
+        primary, secondary, execution, micro, aggregate_signal, risk_state = self._resolve_trade_context(
+            timeframe_states,
+            event_intensity,
+        )
         hold_decision = self._hold_decision(aggregate_signal, primary, secondary, execution, micro, risk_state)
         trade_plan = self._build_trade_plan(asset, quote, aggregate_signal, hold_decision, primary, secondary, execution, micro, risk_state)
         update_note = self._trade_update_note(asset.label, trade_plan)
         trade_plan = trade_plan.model_copy(update={"update_note": update_note})
+        performance = self._backtest_aggregate_performance(asset, timeframe_bars, quote, trade_plan)
+        timeframe_performance = [
+            self._backtest_timeframe_performance(
+                asset=asset,
+                timeframe=timeframe,
+                bars=timeframe_bars.get(timeframe, []),
+                current_state=next(state for state in timeframe_states if state.timeframe == timeframe),
+            )
+            for timeframe in ANALYSIS_TIMEFRAMES
+        ]
 
         drivers = self._merge_unique([
             f"Dow primary: {primary.dow_phase}",
@@ -891,8 +909,412 @@ class AssetAnalysisService:
             drivers=drivers[:7],
             timeframes=timeframe_states,
             trade_plan=trade_plan,
+            performance=performance,
+            timeframe_performance=timeframe_performance,
             formulas=ANALYSIS_FORMULAS,
         )
+
+    def _resolve_trade_context(
+        self,
+        timeframe_states: list[AnalysisTimeframeState],
+        event_intensity: float,
+    ) -> tuple[
+        AnalysisTimeframeState,
+        AnalysisTimeframeState,
+        AnalysisTimeframeState,
+        AnalysisTimeframeState,
+        str,
+        str,
+    ]:
+        state_map = {state.timeframe: state for state in timeframe_states}
+        primary = state_map[PRIMARY_TF]
+        secondary = state_map[SECONDARY_TF]
+        execution = state_map[EXECUTION_TF]
+        micro = state_map[MICRO_TF]
+
+        long_alignment = sum(1 for state in (primary, secondary, execution, micro) if state.signal == "long")
+        short_alignment = sum(1 for state in (primary, secondary, execution, micro) if state.signal == "short")
+        if long_alignment >= 3 and primary.bias == "bullish" and secondary.bias != "bearish":
+            aggregate_signal = "long"
+        elif short_alignment >= 3 and primary.bias == "bearish" and secondary.bias != "bullish":
+            aggregate_signal = "short"
+        else:
+            aggregate_signal = "avoid"
+
+        risk_state = "event-lock" if event_intensity >= 3.2 else "high-vol" if max(state.volatility_score for state in timeframe_states) >= 3 else "normal"
+        return primary, secondary, execution, micro, aggregate_signal, risk_state
+
+    def _synthetic_quote(self, asset: TrackedAsset, bar: PriceBar) -> AssetQuote:
+        previous_close = bar.open if bar.open else None
+        absolute_change = None if previous_close is None else bar.close - previous_close
+        percent_change = None if previous_close in (None, 0) else absolute_change / previous_close * 100
+        return AssetQuote(
+            symbol=asset.snapshot_id,
+            label=asset.label,
+            group=asset.group,
+            venue=asset.venue,
+            currency=asset.currency,
+            last=bar.close,
+            previous_close=previous_close,
+            absolute_change=absolute_change,
+            percent_change=percent_change,
+            day_high=bar.high,
+            day_low=bar.low,
+            updated_at=bar.time,
+            direction="up" if absolute_change is not None and absolute_change > 0 else "down" if absolute_change is not None and absolute_change < 0 else "flat",
+        )
+
+    def _planned_metrics(
+        self,
+        *,
+        entry_price: float | None,
+        stop_level: float | None,
+        take_profit_level: float | None,
+    ) -> tuple[float | None, float | None, float | None]:
+        if entry_price in (None, 0) or stop_level is None or take_profit_level is None:
+            return None, None, None
+        risk_pct = abs(entry_price - stop_level) / entry_price * 100
+        reward_pct = abs(take_profit_level - entry_price) / entry_price * 100
+        if risk_pct <= 0:
+            return None, None, None
+        return reward_pct / risk_pct, risk_pct, reward_pct
+
+    def _simulate_trade(
+        self,
+        *,
+        signal: str,
+        entry_bar: PriceBar,
+        future_bars: list[PriceBar],
+        stop_level: float | None,
+        take_profit_level: float | None,
+    ) -> TradeSimulation | None:
+        entry_price = entry_bar.close
+        if signal not in {"long", "short"} or stop_level is None or take_profit_level is None or entry_price == 0:
+            return None
+        risk = abs(entry_price - stop_level)
+        if risk <= 0:
+            return None
+
+        direction = 1 if signal == "long" else -1
+        exit_price = future_bars[-1].close if future_bars else entry_price
+        exit_reason = "timeout"
+
+        for bar in future_bars:
+            if signal == "long":
+                stop_hit = bar.low <= stop_level
+                target_hit = bar.high >= take_profit_level
+                if stop_hit and target_hit:
+                    exit_price = stop_level
+                    exit_reason = "stop-first"
+                    break
+                if stop_hit:
+                    exit_price = stop_level
+                    exit_reason = "stop"
+                    break
+                if target_hit:
+                    exit_price = take_profit_level
+                    exit_reason = "target"
+                    break
+            else:
+                stop_hit = bar.high >= stop_level
+                target_hit = bar.low <= take_profit_level
+                if stop_hit and target_hit:
+                    exit_price = stop_level
+                    exit_reason = "stop-first"
+                    break
+                if stop_hit:
+                    exit_price = stop_level
+                    exit_reason = "stop"
+                    break
+                if target_hit:
+                    exit_price = take_profit_level
+                    exit_reason = "target"
+                    break
+
+        r_multiple = direction * (exit_price - entry_price) / risk
+        return TradeSimulation(r_multiple=round(r_multiple, 4), exit_reason=exit_reason)
+
+    def _summarize_performance(
+        self,
+        *,
+        scope: str,
+        sample_r: list[float],
+        horizon_bars: int,
+        planned_reward_risk: float | None,
+        planned_risk_pct: float | None,
+        planned_reward_pct: float | None,
+        note: str,
+    ) -> SignalPerformanceStats:
+        if not sample_r:
+            return SignalPerformanceStats(
+                scope=scope,
+                sample_size=0,
+                horizon_bars=horizon_bars,
+                planned_reward_risk=None if planned_reward_risk is None else round(planned_reward_risk, 2),
+                planned_risk_pct=None if planned_risk_pct is None else round(planned_risk_pct, 2),
+                planned_reward_pct=None if planned_reward_pct is None else round(planned_reward_pct, 2),
+                note=note,
+            )
+
+        wins = [value for value in sample_r if value > 0]
+        losses = [-value for value in sample_r if value < 0]
+        gross_profit = sum(wins)
+        gross_loss = sum(losses)
+        equity = 0.0
+        peak = 0.0
+        max_drawdown = 0.0
+        for value in sample_r:
+            equity += value
+            peak = max(peak, equity)
+            max_drawdown = max(max_drawdown, peak - equity)
+
+        avg_r = average(sample_r)
+        avg_win = average(wins) if wins else None
+        avg_loss = -average(losses) if losses else None
+        win_rate = len(wins) / len(sample_r) * 100
+        rr_ratio = None
+        if wins and losses and average(losses) > 0:
+            rr_ratio = average(wins) / average(losses)
+        profit_factor = None
+        if gross_loss > 0:
+            profit_factor = gross_profit / gross_loss
+
+        return SignalPerformanceStats(
+            scope=scope,
+            sample_size=len(sample_r),
+            horizon_bars=horizon_bars,
+            win_rate_pct=round(win_rate, 2),
+            avg_r_multiple=round(avg_r, 3),
+            avg_win_r=None if avg_win is None else round(avg_win, 3),
+            avg_loss_r=None if avg_loss is None else round(avg_loss, 3),
+            reward_risk_ratio=None if rr_ratio is None else round(rr_ratio, 2),
+            profit_factor=None if profit_factor is None else round(profit_factor, 2),
+            expectancy_r=round(avg_r, 3),
+            max_drawdown_r=round(max_drawdown, 3),
+            planned_reward_risk=None if planned_reward_risk is None else round(planned_reward_risk, 2),
+            planned_risk_pct=None if planned_risk_pct is None else round(planned_risk_pct, 2),
+            planned_reward_pct=None if planned_reward_pct is None else round(planned_reward_pct, 2),
+            note=note,
+        )
+
+    def _backtest_timeframe_performance(
+        self,
+        *,
+        asset: TrackedAsset,
+        timeframe: str,
+        bars: list[PriceBar],
+        current_state: AnalysisTimeframeState,
+    ) -> SignalPerformanceStats:
+        horizon = BACKTEST_HORIZONS[timeframe]
+        entry_price = bars[-1].close if bars else None
+        planned_rr, planned_risk_pct, planned_reward_pct = self._planned_metrics(
+            entry_price=entry_price,
+            stop_level=current_state.stop_level,
+            take_profit_level=current_state.take_profit_level,
+        )
+        if len(bars) < max(52, horizon + 24):
+            return self._summarize_performance(
+                scope=timeframe,
+                sample_r=[],
+                horizon_bars=horizon,
+                planned_reward_risk=planned_rr,
+                planned_risk_pct=planned_risk_pct,
+                planned_reward_pct=planned_reward_pct,
+                note="Not enough history for stable replay.",
+            )
+
+        simulations: list[float] = []
+        warmup = max(36, horizon + 12)
+        for index in range(warmup, len(bars) - horizon):
+            history = bars[: index + 1]
+            synthetic_quote = self._synthetic_quote(asset, history[-1])
+            state = self._analyze_timeframe(
+                asset=asset,
+                timeframe=timeframe,
+                bars=history,
+                quote=synthetic_quote,
+                news_score=0.0,
+                cross_score=0.0,
+                event_intensity=0.0,
+                order_book=None,
+            )
+            if state.signal not in {"long", "short"}:
+                continue
+            simulation = self._simulate_trade(
+                signal=state.signal,
+                entry_bar=history[-1],
+                future_bars=bars[index + 1 : index + 1 + horizon],
+                stop_level=state.stop_level,
+                take_profit_level=state.take_profit_level,
+            )
+            if simulation is None:
+                continue
+            simulations.append(simulation.r_multiple)
+
+        return self._summarize_performance(
+            scope=timeframe,
+            sample_r=simulations,
+            horizon_bars=horizon,
+            planned_reward_risk=planned_rr,
+            planned_risk_pct=planned_risk_pct,
+            planned_reward_pct=planned_reward_pct,
+            note="Historical replay uses bar-close entries and conservative stop-first fills.",
+        )
+
+    def _backtest_aggregate_performance(
+        self,
+        asset: TrackedAsset,
+        timeframe_bars: dict[str, list[PriceBar]],
+        quote: AssetQuote | None,
+        trade_plan: AssetTradePlan,
+    ) -> SignalPerformanceStats:
+        execution_bars = timeframe_bars.get(EXECUTION_TF, [])
+        horizon = min(BACKTEST_HORIZONS[EXECUTION_TF], max(6, len(execution_bars) // 4)) if execution_bars else BACKTEST_HORIZONS[EXECUTION_TF]
+        latest_entry = None
+        if trade_plan.entry_zone_low is not None and trade_plan.entry_zone_high is not None:
+            latest_entry = (trade_plan.entry_zone_low + trade_plan.entry_zone_high) / 2
+        elif quote is not None:
+            latest_entry = quote.last
+        elif execution_bars:
+            latest_entry = execution_bars[-1].close
+
+        planned_rr, planned_risk_pct, planned_reward_pct = self._planned_metrics(
+            entry_price=latest_entry,
+            stop_level=trade_plan.stop_level,
+            take_profit_level=trade_plan.take_profit_level,
+        )
+        if len(execution_bars) < max(24, horizon + 12):
+            return self._summarize_performance(
+                scope="aggregate",
+                sample_r=[],
+                horizon_bars=horizon,
+                planned_reward_risk=planned_rr,
+                planned_risk_pct=planned_risk_pct,
+                planned_reward_pct=planned_reward_pct,
+                note="Not enough execution bars for aggregate replay.",
+            )
+        simulations = self._collect_aggregate_replays(asset, timeframe_bars, horizon, strict=True)
+        note = "Aggregate replay aligns 4h/1h/15m/5m stack; macro/news legs are neutralized historically."
+        if not simulations:
+            simulations = self._collect_aggregate_replays(asset, timeframe_bars, horizon, strict=False)
+            note = "Strict stack was sparse; replay fallback uses 4h/15m directional agreement with 1h confirmation."
+
+        return self._summarize_performance(
+            scope="aggregate",
+            sample_r=simulations,
+            horizon_bars=horizon,
+            planned_reward_risk=planned_rr,
+            planned_risk_pct=planned_risk_pct,
+            planned_reward_pct=planned_reward_pct,
+            note=note,
+        )
+
+    def _collect_aggregate_replays(
+        self,
+        asset: TrackedAsset,
+        timeframe_bars: dict[str, list[PriceBar]],
+        horizon: int,
+        *,
+        strict: bool,
+    ) -> list[float]:
+        execution_bars = timeframe_bars.get(EXECUTION_TF, [])
+        primary_bars = timeframe_bars.get(PRIMARY_TF, [])
+        secondary_bars = timeframe_bars.get(SECONDARY_TF, [])
+        micro_bars = timeframe_bars.get(MICRO_TF, [])
+        simulations: list[float] = []
+
+        warmup = max(18, horizon + 8)
+        for index in range(warmup, len(execution_bars) - horizon):
+            execution_slice = execution_bars[: index + 1]
+            marker_time = execution_slice[-1].time
+            primary_slice = [bar for bar in primary_bars if bar.time <= marker_time]
+            secondary_slice = [bar for bar in secondary_bars if bar.time <= marker_time]
+            micro_slice = [bar for bar in micro_bars if bar.time <= marker_time]
+            if min(len(primary_slice), len(secondary_slice), len(execution_slice), len(micro_slice)) < 12:
+                continue
+
+            synthetic_quote = self._synthetic_quote(asset, execution_slice[-1])
+            primary = self._analyze_timeframe(
+                asset=asset,
+                timeframe=PRIMARY_TF,
+                bars=primary_slice,
+                quote=synthetic_quote,
+                news_score=0.0,
+                cross_score=0.0,
+                event_intensity=0.0,
+                order_book=None,
+            )
+            secondary = self._analyze_timeframe(
+                asset=asset,
+                timeframe=SECONDARY_TF,
+                bars=secondary_slice,
+                quote=synthetic_quote,
+                news_score=0.0,
+                cross_score=0.0,
+                event_intensity=0.0,
+                order_book=None,
+            )
+            execution = self._analyze_timeframe(
+                asset=asset,
+                timeframe=EXECUTION_TF,
+                bars=execution_slice,
+                quote=synthetic_quote,
+                news_score=0.0,
+                cross_score=0.0,
+                event_intensity=0.0,
+                order_book=None,
+            )
+            micro = self._analyze_timeframe(
+                asset=asset,
+                timeframe=MICRO_TF,
+                bars=micro_slice,
+                quote=synthetic_quote,
+                news_score=0.0,
+                cross_score=0.0,
+                event_intensity=0.0,
+                order_book=None,
+            )
+
+            if strict:
+                primary, secondary, execution, micro, aggregate_signal, risk_state = self._resolve_trade_context(
+                    [primary, secondary, execution, micro],
+                    0.0,
+                )
+            else:
+                risk_state = "high-vol" if max(primary.volatility_score, secondary.volatility_score, execution.volatility_score, micro.volatility_score) >= 3 else "normal"
+                opposite = {"long": "short", "short": "long"}
+                if primary.signal == execution.signal and primary.signal in {"long", "short"} and secondary.signal != opposite[primary.signal]:
+                    aggregate_signal = primary.signal
+                elif execution.signal in {"long", "short"} and primary.signal != opposite[execution.signal] and secondary.signal != opposite[execution.signal]:
+                    aggregate_signal = execution.signal
+                else:
+                    aggregate_signal = "avoid"
+
+            if aggregate_signal not in {"long", "short"}:
+                continue
+            hold_decision = self._hold_decision(aggregate_signal, primary, secondary, execution, micro, risk_state)
+            replay_plan = self._build_trade_plan(
+                asset,
+                synthetic_quote,
+                aggregate_signal,
+                hold_decision,
+                primary,
+                secondary,
+                execution,
+                micro,
+                risk_state,
+            )
+            simulation = self._simulate_trade(
+                signal=aggregate_signal,
+                entry_bar=execution_slice[-1],
+                future_bars=execution_bars[index + 1 : index + 1 + horizon],
+                stop_level=replay_plan.stop_level,
+                take_profit_level=replay_plan.take_profit_level,
+            )
+            if simulation is not None:
+                simulations.append(simulation.r_multiple)
+
+        return simulations
 
     def _hold_decision(
         self,
