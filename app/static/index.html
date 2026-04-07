@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css?v=20260407e" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260407f" />
   </head>
   <body>
     <div class="terminal">
@@ -263,6 +263,53 @@
         </div>
       </section>
 
+      <section class="panel analysis-panel">
+        <div class="panel-header">
+          <span class="panel-code">SIGNAL LAB</span>
+          <strong>Multi-Timeframe Asset Analysis</strong>
+        </div>
+
+        <div class="analysis-toolbar">
+          <label class="analysis-select-wrap">
+            <span>ASSET</span>
+            <select id="analysisAssetSelect"></select>
+          </label>
+          <div class="analysis-note" id="analysisStamp">WAITING</div>
+        </div>
+
+        <div class="analysis-shell">
+          <section class="subpanel analysis-summary-panel">
+            <div class="subpanel-head">
+              <span>OVERVIEW</span>
+              <strong id="analysisSignal">NO SIGNAL</strong>
+            </div>
+            <div id="analysisOverview" class="summary-lines"></div>
+            <div class="subpanel-head analysis-subhead">
+              <span>TRADE PLAN</span>
+              <strong id="analysisStatus">STANDBY</strong>
+            </div>
+            <div id="analysisPlan" class="summary-lines"></div>
+            <div class="subpanel-head analysis-subhead">
+              <span>MATH MODEL</span>
+              <strong>A-Z</strong>
+            </div>
+            <div id="analysisFormulaList" class="analysis-formula-list"></div>
+          </section>
+
+          <section class="analysis-table-wrap">
+            <div class="table-head analysis-head">
+              <span>TF</span>
+              <span>PHASE / SIGNAL</span>
+              <span>HOLD</span>
+              <span>TREND STACK</span>
+              <span>PRICE MAP</span>
+              <span>SUMMARY</span>
+            </div>
+            <div id="analysisTimeframeList" class="analysis-timeframe-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section class="panel chart-panel">
         <div class="panel-header">
           <span class="panel-code">CHART LAB</span>
@@ -282,6 +329,6 @@
     <div class="toast-stack" id="toastStack"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-    <script type="module" src="/static/app.js?v=20260407e"></script>
+    <script type="module" src="/static/app.js?v=20260407g"></script>
   </body>
 </html>
