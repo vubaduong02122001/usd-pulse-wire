@@ -14,6 +14,7 @@ from app.config import settings
 from app.services.calendar_data import EconomicCalendarService
 from app.services.hub import NewsHub
 from app.services.market_data import MarketDataService
+from app.services.quant_outlook import QuantOutlookService
 from app.services.speech_data import SpeechTapeService
 from app.services.sources import build_default_sources
 
@@ -22,6 +23,7 @@ hub = NewsHub(build_default_sources(), settings)
 market_data = MarketDataService(settings)
 calendar_data = EconomicCalendarService(settings)
 speech_data = SpeechTapeService(settings)
+quant_outlook = QuantOutlookService(settings, hub, market_data, calendar_data, speech_data)
 
 
 @asynccontextmanager
@@ -29,11 +31,13 @@ async def lifespan(_: FastAPI):
     await calendar_data.start()
     await market_data.start()
     await speech_data.start()
+    await quant_outlook.start()
     await hub.start()
     try:
         yield
     finally:
         await hub.stop()
+        await quant_outlook.stop()
         await speech_data.stop()
         await market_data.stop()
         await calendar_data.stop()
@@ -151,6 +155,11 @@ async def trump_tape_snapshot(force: bool = Query(default=False)):
         raise HTTPException(status_code=500, detail="Invalid speech snapshot payload.") from exc
 
     return no_store_json(payload)
+
+
+@app.get("/api/quant-outlook")
+async def quant_snapshot(force: bool = Query(default=False)):
+    return no_store_json((await quant_outlook.snapshot(force=force)).model_dump(mode="json"))
 
 
 @app.get("/api/asset-chart")
