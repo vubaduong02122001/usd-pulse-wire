@@ -989,7 +989,7 @@ button {
 }
 
 .quant-regime-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .quant-regime-card,
@@ -1038,7 +1038,7 @@ button {
 
 .quant-head,
 .quant-row {
-  grid-template-columns: 108px 170px 164px 232px minmax(0, 1fr);
+  grid-template-columns: 126px 206px 216px 250px minmax(0, 1fr);
 }
 
 .quant-row {
